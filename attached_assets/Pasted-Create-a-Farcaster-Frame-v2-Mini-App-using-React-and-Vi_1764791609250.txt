@@ -1,0 +1,148 @@
+Create a Farcaster Frame v2 Mini App using React and Vite.
+
+1. Dependencies: Please install `ethers`, `lucide-react`, and `@farcaster/frame-sdk` immediately.
+
+2. Code Logic:
+Overwrite `src/App.jsx` with the following code to interact with a Base smart contract.
+IMPORTANT: The contract address is "YOUR_CONTRACT_ADDRESS_HERE".
+
+Code for App.jsx:
+'''
+import React, { useState, useEffect } from 'react';
+import { CalendarCheck, Clock, ShieldCheck, Wallet, Flame } from 'lucide-react';
+import { ethers } from 'ethers';
+import sdk from '@farcaster/frame-sdk';
+
+const CONTRACT_ADDRESS = "0x8F53eaCb3968F31c4F5FDcaD751c82c1041Aba11"; 
+const TARGET_CHAIN_ID = 8453n;
+const TARGET_CHAIN_HEX = '0x2105';
+
+const CONTRACT_ABI = [
+  "function checkIn() public",
+  "function getUserStatus(address user) public view returns (uint256 count, uint256 lastTime, bool canCheckIn)"
+];
+
+export default function App() {
+  const [account, setAccount] = useState(null);
+  const [streak, setStreak] = useState(0);
+  const [canCheckIn, setCanCheckIn] = useState(false);
+  const [nextTime, setNextTime] = useState(null);
+  const [status, setStatus] = useState('loading'); 
+  const [context, setContext] = useState(null);
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        setContext(await sdk.context);
+        sdk.actions.ready();
+      } catch (e) { console.log("Not in frame"); }
+    };
+    init();
+    checkWallet();
+  }, []);
+
+  useEffect(() => {
+    if (account) fetchUserData();
+  }, [account]);
+
+  const checkWallet = async () => {
+    if (window.ethereum) {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const accounts = await provider.listAccounts();
+      if (accounts.length > 0) setAccount(accounts[0].address);
+      else setStatus('ready');
+    } else { setStatus('ready'); }
+  };
+
+  const fetchUserData = async () => {
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+      const [count, lastTimeBigInt, available] = await contract.getUserStatus(account);
+      setStreak(Number(count));
+      setCanCheckIn(available);
+      const lastTime = Number(lastTimeBigInt);
+      if (lastTime > 0) {
+        setNextTime(new Date((lastTime + 86400) * 1000));
+      }
+      setStatus('ready');
+    } catch (err) { console.error(err); setStatus('ready'); }
+  };
+
+  const handleCheckIn = async () => {
+    if (!account) {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const accounts = await provider.send("eth_requestAccounts", []);
+      setAccount(accounts[0]);
+      return;
+    }
+    try {
+      setStatus('mining');
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
+      if (network.chainId !== TARGET_CHAIN_ID) {
+         await window.ethereum.request({
+           method: 'wallet_switchEthereumChain',
+           params: [{ chainId: TARGET_CHAIN_HEX }],
+         });
+      }
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+      const tx = await contract.checkIn();
+      await tx.wait(); 
+      setStatus('success');
+      fetchUserData(); 
+      setTimeout(() => setStatus('ready'), 3000);
+    } catch (err) {
+      console.error(err);
+      setStatus('ready');
+      alert("Error: " + (err.reason || err.message));
+    }
+  };
+
+  const getTimeRemaining = () => {
+    if (!nextTime) return "";
+    const diff = nextTime - new Date();
+    if (diff <= 0) return "Ready!";
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    return `${hours}h ${minutes}m`;
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0f172a] text-white font-sans flex flex-col items-center p-8 select-none">
+       <div className="text-center space-y-4 mb-8">
+         <h1 className="text-2xl font-bold flex items-center gap-2 justify-center text-emerald-400"><CalendarCheck /> Daily Check-in</h1>
+         <div className="text-6xl font-black">{streak} <span className="text-xl text-gray-500">DAYS</span></div>
+       </div>
+       <button onClick={handleCheckIn} disabled={status === 'mining' || (!canCheckIn && account)} className={`w-full max-w-xs py-4 rounded-xl font-bold text-lg ${canCheckIn || !account ? 'bg-emerald-500 text-white' : 'bg-gray-700 text-gray-400'}`}>
+         {status === 'mining' ? 'Mining...' : canCheckIn || !account ? 'Check In' : `Wait ${getTimeRemaining()}`}
+       </button>
+    </div>
+  );
+}
+'''
+
+3. Configuration:
+Create a file named `public/.well-known/farcaster.json` exactly with this content:
+'''
+{
+  "accountAssociation": {
+    "header": "eyJmaW...",
+    "payload": "eyJkb2...",
+    "signature": "MHhkY..."
+  },
+  "frame": {
+    "version": "1",
+    "name": "Daily Check-in",
+    "iconUrl": "https://PLACEHOLDER_URL/vite.svg",
+    "homeUrl": "https://PLACEHOLDER_URL",
+    "imageUrl": "https://placehold.co/600x400/0f172a/10b981/png?text=Daily+Check-in",
+    "buttonTitle": "Check In",
+    "splashImageUrl": "https://placehold.co/200x200/0f172a/10b981/png?text=Loading",
+    "splashBackgroundColor": "#0f172a",
+    "webhookUrl": "https://PLACEHOLDER_URL/api/webhook"
+  }
+}
+'''
+Note: I will update the URL and signature manually later.
