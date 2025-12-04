@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { CalendarCheck, Clock, ShieldCheck, Wallet, AlertCircle } from 'lucide-react';
+import { CalendarCheck, Clock, ShieldCheck, Wallet, AlertCircle, LogOut } from 'lucide-react';
 import { ethers } from 'ethers';
 import sdk from '@farcaster/frame-sdk';
 
 // 🔴🔴🔴 请确认这里是你部署好的合约地址
-const CONTRACT_ADDRESS = "Y0x8F53eaCb3968F31c4F5FDcaD751c82c1041Aba11"; 
+const CONTRACT_ADDRESS = "0x8F53eaCb3968F31c4F5FDcaD751c82c1041Aba11"; 
 
 const TARGET_CHAIN_ID = 8453; // Base Mainnet
 const TARGET_CHAIN_HEX = '0x2105';
@@ -151,6 +151,24 @@ export default function App() {
     }
   };
 
+  // 新增：切换钱包/断开连接功能
+  const switchWallet = async () => {
+    if (window.ethereum) {
+      try {
+        // 请求 wallet_requestPermissions 会强制弹出钱包选择窗口
+        await window.ethereum.request({
+          method: "wallet_requestPermissions",
+          params: [{ eth_accounts: {} }]
+        });
+        // 监听器 accountsChanged 会自动处理后续更新
+      } catch (err) {
+        console.error(err);
+        // 如果用户取消，我们可以选择清除本地状态让其重新点击连接
+        setAccount(null); 
+      }
+    }
+  };
+
   const handleCheckIn = async () => {
     if (CONTRACT_ADDRESS.includes("YOUR_CONTRACT")) {
         alert("请先在代码中填入合约地址！");
@@ -241,8 +259,17 @@ export default function App() {
          )}
          
          {account && (
-           <div className="text-xs text-gray-600 text-center font-mono">
-             当前: {account.slice(0,6)}...{account.slice(-4)}
+           <div className="flex items-center justify-center gap-2">
+             <div className="text-xs text-gray-500 font-mono bg-gray-900/50 px-3 py-1 rounded-full border border-gray-800">
+               {account.slice(0,6)}...{account.slice(-4)}
+             </div>
+             <button 
+                onClick={switchWallet}
+                className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-900/10 rounded-full transition-all"
+                title="切换/断开钱包"
+             >
+               <LogOut size={14} />
+             </button>
            </div>
          )}
        </div>
